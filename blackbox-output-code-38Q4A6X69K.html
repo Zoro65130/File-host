@@ -1,0 +1,455 @@
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const app = express();
+const PORT = 3000;
+
+const DB_FILE = './filesDB.json';
+const UPLOAD_DIR = './uploads';
+
+// ✅ Ensure uploads folder exists
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR);
+}
+
+function loadDB() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.log('Error loading DB:', e);
+  }
+  return {};
+}
+
+function saveDB(data) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+}
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+let filesDB = loadDB();
+
+const storage = multer.diskStorage({
+  destination: UPLOAD_DIR,
+  filename: (req, file, cb) => {
+    const uniqueName =
+      crypto.randomBytes(16).toString('hex') +
+      path.extname(file.originalname);
+    cb(null, uniqueName);
+  }
+});
+
+const ALLOWED_EXTENSIONS =
+  /jpeg|jpg|png|gif|webp|pdf|zip|rar|7z|tar|gz|mp3|mp4|mkv|avi|mov|webm|doc|docx|xls|xlsx|ppt|pptx|txt|xml|json/;
+
+const blocked = ['exe', 'sh', 'bat', 'cmd', 'ps1', 'js', 'jar', 'scr', 'vbs', 'com', 'pif'];
+
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+
+  if (blocked.includes(ext)) {
+    return cb(new Error('Dangerous file blocked!'));
+  }
+
+  if (!ALLOWED_EXTENSIONS.test(ext)) {
+    return cb(new Error('File type not allowed!'));
+  }
+
+  cb(null, true);
+};
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter
+});
+
+app.use(express.static('public'));
+app.use(express.json());
+
+function generateCode() {
+  let code;
+  do {
+    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  } while (filesDB[code]);
+  return code;
+}
+
+// ✅ Upload
+app.post('/api/upload', (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+
+    const file = req.file;
+    const { filePassword } = req.body;
+
+    if (!file) return res.status(400).json({ error: 'No file!' });
+
+    const code = generateCode();
+    const hashed = filePassword ? hashPassword(filePassword) : null;
+
+    filesDB[code] = {
+      originalName: file.originalname,
+      filename: file.filename,
+      size: file.size,
+      filePassword: hashed,
+      hasPassword: !!filePassword,
+      uploadDate: new Date().toISOString(),
+      downloads: 0
+    };
+
+    saveDB(filesDB);
+
+    res.json({
+      success: true,
+      downloadCode: code,
+      link: `/download.html?code=${code}`,
+      hasPassword: !!filePassword
+    });
+  });
+});
+
+// Password verify
+app.post('/api/verify-file-password', (req, res) => {
+  const { code, password } = req.body;
+  const file = filesDB[code];
+
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  if (!file.hasPassword) return res.json({ valid: true });
+
+  const hashed = hashPassword(password);
+  res.json({ valid: file.filePassword === hashed });
+});
+
+// File info
+app.get('/api/file/:code', (req, res) => {
+  const file = filesDB[req.params.code];
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  res.json({
+    originalName: file.originalName,
+    size: file.size,
+    hasPassword: file.hasPassword
+  });
+});
+
+// Download
+app.get('/api/download/:code', (req, res) => {
+  const file = filesDB[req.params.code];
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  file.downloads += 1;
+  saveDB(filesDB);
+
+  res.download(path.join(UPLOAD_DIR, file.filename), file.originalName);
+});
+
+app.listen(PORT, () => console.log(`Server running 🚀 on port ${PORT}`));const API_URL = '/api';
+
+function goToDownload() {
+  const code = document.getElementById('downloadCode').value.trim();
+  if (code) window.location.href = `/download.html?code=${code}`;
+}
+
+async function uploadFile() {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) return;
+
+  const password = document.getElementById('filePassword').value;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('filePassword', password);
+
+  const res = await fetch(`${API_URL}/upload`, {
+    method: 'POST',
+    body: formData
+  });
+
+  const data = await res.json();
+
+  if (data.error) return alert(data.error);
+
+  // FIX: value instead of textContent
+  document.getElementById('downloadCode').value = data.downloadCode;
+}FileHost/
+ ├── server.js
+ ├── filesDB.json
+ ├── uploads/
+ ├── public/
+ │    ├── index.html
+ │    ├── upload.html
+ │    ├── download.html
+ │    ├── style.cssconst express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const app = express();
+const PORT = 3000;
+
+const DB_FILE = './filesDB.json';
+
+// ensure folders exist
+if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
+if (!fs.existsSync(DB_FILE)) fs.writeFileSync(DB_FILE, '{}');
+
+app.use(express.json());
+app.use(express.static('public'));
+
+function loadDB() {
+  return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+}
+
+function saveDB(data) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+}
+
+function hashPassword(pw) {
+  return crypto.createHash('sha256').update(pw).digest('hex');
+}
+
+let filesDB = loadDB();
+
+// storage
+const storage = multer.diskStorage({
+  destination: './uploads/',
+  filename: (req, file, cb) => {
+    const name = crypto.randomBytes(16).toString('hex') + path.extname(file.originalname);
+    cb(null, name);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 500 * 1024 * 1024 }
+});
+
+// generate code
+function generateCode() {
+  let code;
+  do {
+    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  } while (filesDB[code]);
+  return code;
+}
+
+// upload
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  const file = req.file;
+  const { filePassword } = req.body;
+
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+  const code = generateCode();
+
+  filesDB[code] = {
+    originalName: file.originalname,
+    filename: file.filename,
+    size: file.size,
+    hasPassword: !!filePassword,
+    filePassword: filePassword ? hashPassword(filePassword) : null
+  };
+
+  saveDB(filesDB);
+
+  res.json({ downloadCode: code });
+});
+
+// check file info
+app.get('/api/file/:code', (req, res) => {
+  const file = filesDB[req.params.code];
+  if (!file) return res.status(404).json({ error: 'Not found' });
+
+  res.json({ hasPassword: file.hasPassword });
+});
+
+// password check
+app.post('/api/check/:code', (req, res) => {
+  const file = filesDB[req.params.code];
+  if (!file) return res.status(404).send('Not found');
+
+  const { password } = req.body;
+
+  if (file.hasPassword) {
+    if (hashPassword(password) !== file.filePassword) {
+      return res.status(401).send('Wrong password');
+    }
+  }
+
+  res.send('OK');
+});
+
+// download
+app.get('/api/download/:code', (req, res) => {
+  const file = filesDB[req.params.code];
+  if (!file) return res.status(404).send('Not found');
+
+  const filePath = path.join(__dirname, 'uploads', file.filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File missing');
+  }
+
+  res.download(filePath, file.originalName);
+});
+
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));<!DOCTYPE html>
+<html>
+<head>
+<title>FileHost</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+<h1>📁 FileHost</h1>
+
+<a href="upload.html" class="btn">Upload File</a>
+<br><br>
+
+<input id="code" placeholder="Enter code">
+<button onclick="go()">Download</button>
+
+</div>
+
+<script>
+function go(){
+  const c = document.getElementById('code').value;
+  window.location = '/download.html?code=' + c;
+}
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html>
+<head>
+<title>Upload</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+<h1>Upload File</h1>
+
+<input type="file" id="file"><br><br>
+<input type="password" id="pass" placeholder="Password (optional)"><br><br>
+
+<button onclick="upload()">Upload</button>
+
+<p id="result"></p>
+
+</div>
+
+<script>
+async function upload(){
+  const f = document.getElementById('file').files[0];
+  const p = document.getElementById('pass').value;
+
+  if(!f){
+    alert("Select file");
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('file', f);
+  fd.append('filePassword', p);
+
+  const res = await fetch('/api/upload', { method:'POST', body:fd });
+  const data = await res.json();
+
+  document.getElementById('result').innerText =
+    "Upload Code: " + data.downloadCode;
+}
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html>
+<head>
+<title>Download</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+<h1>Download File</h1>
+
+<input type="password" id="pass" placeholder="Enter password (if set)">
+<br><br>
+
+<button onclick="downloadFile()">Download</button>
+
+<p id="msg"></p>
+
+</div>
+
+<script>
+const code = new URLSearchParams(window.location.search).get('code');
+
+async function downloadFile(){
+
+  // check password first
+  const res = await fetch('/api/check/' + code, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      password: document.getElementById('pass').value
+    })
+  });
+
+  if(!res.ok){
+    document.getElementById('msg').innerText = "❌ Wrong password";
+    return;
+  }
+
+  // download
+  window.location = '/api/download/' + code;
+}
+</script>
+
+</body>
+</html>body {
+  font-family: Arial;
+  background: #eee;
+  text-align: center;
+}
+
+.container {
+  background: white;
+  padding: 20px;
+  margin: 50px auto;
+  width: 300px;
+  border-radius: 10px;
+}
+
+.btn {
+  padding: 10px;
+  background: green;
+  color: white;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button {
+  padding: 8px 12px;
+  margin-top: 5px;
+}
+
+input {
+  padding: 8px;
+  width: 90%;
+}
+
+p {
+  margin-top: 10px;
+}

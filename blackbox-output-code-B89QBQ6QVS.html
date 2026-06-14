@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Download</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <div class="container">
+    <header><h1>📥 Download</h1><a href="index.html" class="btn btn-secondary">Home</a></header>
+    <div id="loading">Loading...</div>
+    <div id="fileInfo" class="hidden">
+      <div class="file-details"><span class="file-icon">📄</span><h2 id="fileName"></h2><p>Size: <span id="fileSize"></span></p><p id="fileHasPassword" class="hidden">🔐 Password Protected</p></div>
+      <div class="captcha-box"><h3>🤖 Captcha</h3><div class="captcha-display"><span id="captchaText"></span></div><input type="text" id="captchaInput" placeholder="Enter captcha"></div>
+      <div id="filePasswordBox" class="captcha-box hidden"><h3>🔐 File Password</h3><input type="password" id="filePasswordInput" placeholder="Enter file password"><p id="filePasswordError" class="error hidden">❌ Wrong!</p></div>
+      <button onclick="verifyAndDownload()" class="btn btn-primary">Download</button>
+    </div>
+    <div id="notFound" class="hidden"><h2>❌ Not Found</h2><a href="index.html" class="btn btn-secondary">Home</a></div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

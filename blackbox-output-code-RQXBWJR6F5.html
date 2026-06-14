@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Upload</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <div class="container">
+    <header><h1>📤 Upload</h1><a href="index.html" class="btn btn-secondary">Home</a></header>
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-content">
+        <span class="upload-icon">📁</span>
+        <p>Drag & drop or <label for="fileInput" class="browse-btn">Browse</label></p>
+        <p class="hint">Max: 10GB</p>
+        <input type="file" id="fileInput" hidden>
+      </div>
+    </div>
+    <div class="captcha-box">
+      <h3>🔐 File Password (Optional)</h3>
+      <p class="hint">Leave empty for no password</p>
+      <input type="password" id="filePassword" placeholder="Enter password">
+    </div>
+    <div id="uploadProgress" class="hidden"><div class="progress-bar"><div id="progressFill"></div></div><p>Uploading...</p></div>
+    <div id="result" class="result-box hidden">
+      <h3>✅ Done!</h3>
+      <p>Code: <span id="downloadCode"></span></p>
+      <p id="passwordNote" class="hidden">🔐 Password Protected!</p>
+      <button onclick="copyCode()" class="btn btn-primary">Copy</button>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
